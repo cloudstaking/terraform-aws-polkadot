@@ -10,22 +10,16 @@ variable "security_group_whitelisted_ssh_ip" {
 
 variable "instance_name" {
   default     = "validator"
-  description = "Name of the Scaleway instance"
+  description = "Name of the instance"
 }
 
 variable "instance_type" {
   default     = "m5.large"
-  description = "Instance type: for Kusama DEV1-M is fine, for Polkadot maybe GP1-M. Check requirements in the Polkadot wiki"
+  description = "Instance type: for Kusama m5.large is fine, for Polkadot maybe r5.2xlarge. This constantly change, check requirements section in the Polkadot wiki"
 }
 
-variable "additional_volume" {
-  description = "By default, DEV1-M comes with 40GB disk size. Set this variable in order to create an additional volume (mounted in /srv)"
-  default     = false
-  type        = bool
-}
-
-variable "additional_volume_size" {
-  description = "Volume size where the chain state is going to be saved (only applies if additional_volume variable set) - check Kusama/Polkadot requirements"
+variable "disk_size" {
+  description = "Disk size. Because chain state constantly grows check the [requirements in the wiki](https://guide.kusama.network/docs/en/mirror-maintain-guides-how-to-validate-kusama) for the advisable sizes"
   default     = 200
 }
 

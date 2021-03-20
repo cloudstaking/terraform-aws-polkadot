@@ -22,17 +22,6 @@ packages:
 ntp:
   enabled: true
 
-%{ if additional_volume ~}
-fs_setup:
-  - label: /dev/nvme1n1
-    filesystem: ext4
-    extra_opts: ["-E", "nodiscard"]
-    device: /dev/nvme1n1
-    partition: auto
-mounts:
-  - [ /dev/nvme1n1, "/srv", "ext4", "defaults,discard", "0", "2" ]
-%{ endif ~}
-
 write_files:
 - encoding: b64
   content: ${docker_compose}

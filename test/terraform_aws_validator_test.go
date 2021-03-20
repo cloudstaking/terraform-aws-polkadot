@@ -14,8 +14,9 @@ import (
 	"github.com/gruntwork-io/terratest/modules/terraform"
 )
 
-// TestValidatorWithAddicionalVolume deploys a validator with an addional volume
-func TestValidatorWithAddicionalVolume(t *testing.T) {
+// TestValidator deploys a validator and check the basic things like: disk space, tools
+// (docker/docker-compose/etc)
+func TestValidator(t *testing.T) {
 	t.Parallel()
 
 	instanceName := fmt.Sprintf("terratest-%s", random.UniqueId())
@@ -27,7 +28,7 @@ func TestValidatorWithAddicionalVolume(t *testing.T) {
 	keyPair := ssh.GenerateRSAKeyPair(t, 2048)
 
 	terraformOptions := &terraform.Options{
-		TerraformDir: "../examples/addicional-volume",
+		TerraformDir: "../examples/simple-validator",
 		EnvVars: map[string]string{
 			"AWS_DEFAULT_REGION": awsRegion,
 		},
@@ -54,9 +55,8 @@ func TestValidatorWithAddicionalVolume(t *testing.T) {
 
 	maxRetries := 30
 	timeBetweenRetries := 30 * time.Second
-	description := fmt.Sprintf("SSHing to validator %s to check /srv size", publicInstanceIP)
+	description := fmt.Sprintf("SSHing to validator %s to check disk size", publicInstanceIP)
 
-	// Testing partition was created with the right size
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
 		return checkVolumeSize(t, publicHost)
 	})
@@ -64,6 +64,11 @@ func TestValidatorWithAddicionalVolume(t *testing.T) {
 	description = fmt.Sprintf("SSHing to validator %s to check if docker & docker-compose are installed", publicInstanceIP)
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
 		return checkDockerBinaries(t, publicHost)
+	})
+
+	description = fmt.Sprintf("SSHing in validator (%s) to check if application files exist", publicInstanceIP)
+	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
+		return checkAppFiles(t, publicHost)
 	})
 }
 
@@ -106,12 +111,12 @@ func TestValidatorWithPolkashots(t *testing.T) {
 		return checkDockerBinaries(t, publicHost)
 	})
 
-	description = fmt.Sprintf("SSHing into validator (%s) to check if snapshot folder exist and >5GB", publicInstanceIP)
+	description = fmt.Sprintf("SSHing to validator (%s) to check if snapshot folder exist and >5GB", publicInstanceIP)
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
 		return checkPolkadotSnapshot(t, publicHost)
 	})
 
-	description = fmt.Sprintf("SSHing into validator (%s) to check if application files exist", publicInstanceIP)
+	description = fmt.Sprintf("SSHing to validator (%s) to check if application files exist", publicInstanceIP)
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
 		return checkAppFiles(t, publicHost)
 	})
@@ -180,9 +185,9 @@ func checkPolkadotSnapshot(t *testing.T, h ssh.Host) (string, error) {
 	return "", nil
 }
 
-// checkVolumeSize verify the size of the volume attached
+// checkVolumeSize verify the disk size
 func checkVolumeSize(t *testing.T, h ssh.Host) (string, error) {
-	diskSizeCmd := fmt.Sprintf("df | grep /srv | awk '{print $2}'")
+	diskSizeCmd := fmt.Sprintf("df | grep /dev/root | awk '{print $2}'")
 	diskSizeR, err := ssh.CheckSshCommandE(t, h, diskSizeCmd)
 
 	if err != nil {
@@ -194,11 +199,11 @@ func checkVolumeSize(t *testing.T, h ssh.Host) (string, error) {
 		return "", err
 	}
 
-	if diskSizeInt <= 190000000 && diskSizeInt >= 210000000 {
+	if diskSizeInt <= 195000000 && diskSizeInt >= 210000000 {
 		return "", fmt.Errorf("Expected disk size to be within 190000000 and 210000000 but got '%v'", diskSizeInt)
 	}
 
-	t.Log("Validator seems to have the right disk size in /srv")
+	t.Log("Validator seems to have the right disk")
 
 	return "", nil
 }

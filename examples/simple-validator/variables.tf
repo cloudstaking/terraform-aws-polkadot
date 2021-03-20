@@ -1,7 +1,3 @@
-variable "additional_volume" {
-  type = bool
-}
-
 variable "instance_name" {
   description = "Name of the Scaleway instance"
 }
@@ -15,3 +11,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_polkashots" {
+  description = "Pull latest Polkadot/Kusama (depending on chain variable) from polkashots.io"
+  type        = bool
+}
+

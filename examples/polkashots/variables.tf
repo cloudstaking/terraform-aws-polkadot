@@ -1,7 +1,3 @@
-variable "additional_volume" {
-  type = bool
-}
-
 variable "instance_name" {
   description = "Name of the Scaleway instance"
 }

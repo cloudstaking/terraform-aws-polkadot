@@ -17,7 +17,6 @@ locals {
   cloud_init = templatefile("${path.module}/templates/cloud-init.yaml.tpl", {
     chain             = lookup(local.chain, var.chain, local.chain.other)
     enable_polkashots = var.enable_polkashots
-    additional_volume = var.additional_volume
     docker_compose    = base64encode(local.docker_compose)
   })
 }
@@ -38,7 +37,7 @@ resource "aws_security_group" "validator" {
     protocol    = "tcp"
     cidr_blocks = [var.security_group_whitelisted_ssh_ip]
   }
-   
+
   ingress {
     description = "nginx (reverse-proxy for p2p port)"
     from_port   = 80
@@ -46,7 +45,7 @@ resource "aws_security_group" "validator" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-   
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -86,15 +85,8 @@ resource "aws_instance" "validator" {
   key_name                    = aws_key_pair.validator.key_name
   user_data                   = local.cloud_init
 
-  dynamic "ebs_block_device" {
-    for_each = range(var.additional_volume ? 1 : 0)
-
-    content {
-      device_name = "/dev/sdb"
-      volume_size = var.additional_volume_size
-      volume_type = "gp2"
-      delete_on_termination = true
-    }
+  root_block_device {
+    volume_size = var.disk_size
   }
 
   tags = merge(
