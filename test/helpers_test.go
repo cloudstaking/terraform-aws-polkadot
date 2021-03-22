@@ -70,8 +70,8 @@ func checkPolkadotSnapshot(t *testing.T, h ssh.Host) (string, error) {
 
 // checkDiskSize verifies the disk size is more than an input variable (sizeAtLeast). It
 // is a variable because in some cloud-providers (like Scaleway) it varies a lot
-func checkDiskSize(t *testing.T, h ssh.Host, sizeAtLeast int) (string, error) {
-	diskSizeCmd := fmt.Sprintf("df | grep /srv | awk '{print $2}'")
+func checkDiskSize(t *testing.T, h ssh.Host, sizeAtLeast int, mountPoint string) (string, error) {
+	diskSizeCmd := fmt.Sprintf("df | grep %s | awk '{print $2}'", mountPoint)
 	diskSizeR, err := ssh.CheckSshCommandE(t, h, diskSizeCmd)
 
 	if err != nil {
