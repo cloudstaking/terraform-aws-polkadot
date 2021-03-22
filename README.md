@@ -11,9 +11,8 @@ Terraform module for provisioning ready-to-use _single node_ (or optionally _act
 module "kusama_validator" {
   source = "github.com/cloudstaking/terraform-aws-polkadot?ref=1.0.0"
 
-  instance_name       = "ksm-validator"
-  security_group_name = "ksm-validator"
-  chain               = "kusama"
+  instance_name       = "validator"
+  ssh_key             = "ssh-rsa XXXXXXXXXXXXXX"
 }
 ```
 
