@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -58,12 +56,12 @@ func TestValidator(t *testing.T) {
 	description := fmt.Sprintf("SSHing to validator %s to check disk size", publicInstanceIP)
 
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkVolumeSize(t, publicHost)
+		return checkDiskSize(t, publicHost, 190000000)
 	})
 
 	description = fmt.Sprintf("SSHing to validator %s to check if docker & docker-compose are installed", publicInstanceIP)
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkDockerBinaries(t, publicHost)
+		return checkBinaries(t, publicHost)
 	})
 
 	description = fmt.Sprintf("SSHing in validator (%s) to check if application files exist", publicInstanceIP)
@@ -108,7 +106,7 @@ func TestValidatorWithPolkashots(t *testing.T) {
 
 	description := fmt.Sprintf("SSHing to validator %s to check if docker & docker-compose are installed", publicInstanceIP)
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkDockerBinaries(t, publicHost)
+		return checkBinaries(t, publicHost)
 	})
 
 	description = fmt.Sprintf("SSHing to validator (%s) to check if snapshot folder exist and >5GB", publicInstanceIP)
@@ -120,90 +118,4 @@ func TestValidatorWithPolkashots(t *testing.T) {
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
 		return checkAppFiles(t, publicHost)
 	})
-}
-
-/////////////
-// Helpers //
-/////////////
-
-// checkDockerBinaries Function to check if docker and docker-compose binaries exist in the host
-func checkDockerBinaries(t *testing.T, h ssh.Host) (string, error) {
-	dockerExistCmd := fmt.Sprintf("command -v docker")
-	_, err := ssh.CheckSshCommandE(t, h, dockerExistCmd)
-
-	if err != nil {
-		return "", fmt.Errorf("It looks like docker is not installed '%w'", err)
-	}
-
-	dockerComposeExistCmd := fmt.Sprintf("command -v docker-compose")
-	_, err = ssh.CheckSshCommandE(t, h, dockerComposeExistCmd)
-
-	if err != nil {
-		return "", fmt.Errorf("Docker is not yet installed '%w'", err)
-	}
-
-	t.Log("Validator got docker & docker-compose installed")
-
-	return "", nil
-}
-
-// checkAppFile ensure application layer files exists
-func checkAppFiles(t *testing.T, h ssh.Host) (string, error) {
-	appFilesExistCmd := fmt.Sprintf("ls /srv/docker-compose.yml /srv/nginx.conf")
-	_, err := ssh.CheckSshCommandE(t, h, appFilesExistCmd)
-
-	if err != nil {
-		return "", fmt.Errorf("Files /srv/docker-compose.yml and /srv/nginx.conf doesn't exist: '%w'", err)
-	}
-
-	t.Log("Validator has /srv/{docker-compose.yml,nginx.conf} files")
-
-	return "", nil
-}
-
-// checkPolkadotSnapshot check snapshot size is "big enough"
-func checkPolkadotSnapshot(t *testing.T, h ssh.Host) (string, error) {
-	polkashotSizeCmd := fmt.Sprintf("sudo du /srv/kusama/ | tail -n1 | awk '{print $1}'")
-	polkashotFolderSize, err := ssh.CheckSshCommandE(t, h, polkashotSizeCmd)
-
-	if err != nil {
-		return "", fmt.Errorf("Error checking size of /srv/kusama/ directory: '%w'", err)
-	}
-
-	polkashotFolderSizeInt, err := strconv.Atoi(strings.TrimSuffix(polkashotFolderSize, "\n"))
-	if err != nil {
-		return "", err
-	}
-
-	// >5GB means snapshot is extracking good
-	if polkashotFolderSizeInt <= 5000000 {
-		return "", fmt.Errorf("Snapshot folder-size (/srv/kusama/) < 5GB. Problem downloading snapshot? Size: '%v'", polkashotFolderSizeInt)
-	}
-
-	t.Log("Snapshot folder (/srv/kusama) > 5GB. Snapshot downloaded")
-
-	return "", nil
-}
-
-// checkVolumeSize verify the disk size
-func checkVolumeSize(t *testing.T, h ssh.Host) (string, error) {
-	diskSizeCmd := fmt.Sprintf("df | grep /dev/root | awk '{print $2}'")
-	diskSizeR, err := ssh.CheckSshCommandE(t, h, diskSizeCmd)
-
-	if err != nil {
-		return "", err
-	}
-
-	diskSizeInt, err := strconv.Atoi(strings.TrimSuffix(diskSizeR, "\n"))
-	if err != nil {
-		return "", err
-	}
-
-	if diskSizeInt <= 195000000 && diskSizeInt >= 210000000 {
-		return "", fmt.Errorf("Expected disk size to be within 190000000 and 210000000 but got '%v'", diskSizeInt)
-	}
-
-	t.Log("Validator seems to have the right disk")
-
-	return "", nil
 }
