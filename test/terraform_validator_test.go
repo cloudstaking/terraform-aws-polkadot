@@ -44,6 +44,8 @@ func TestValidator(t *testing.T) {
 
 	// Run `terraform output` to get the value of an output variable
 	publicInstanceIP := terraform.Output(t, terraformOptions, "public_ip")
+	httpUsername := terraform.Output(t, terraformOptions, "http_username")
+	httpPassword := terraform.Output(t, terraformOptions, "http_password")
 
 	publicHost := ssh.Host{
 		Hostname:    publicInstanceIP,
@@ -59,63 +61,18 @@ func TestValidator(t *testing.T) {
 		return checkDiskSize(t, publicHost, 190000000, "/dev/root")
 	})
 
+	description = fmt.Sprintf("Checking if node_exporter is running in %s", publicInstanceIP)
+	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
+		return checkNodeExporter(t, publicInstanceIP, httpUsername, httpPassword)
+	})
+
 	description = fmt.Sprintf("SSHing to validator %s to check if docker & docker-compose are installed", publicInstanceIP)
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkBinaries(t, publicHost)
+		return checkBinaries(t, publicHost, "host")
 	})
 
 	description = fmt.Sprintf("SSHing in validator (%s) to check if application files exist", publicInstanceIP)
 	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkAppFiles(t, publicHost)
-	})
-}
-
-// TestValidatorWithPolkashots deploys a validator and enable polkashots
-func TestValidatorWithPolkashots(t *testing.T) {
-	t.Parallel()
-
-	instanceName := fmt.Sprintf("terratest-%s", random.UniqueId())
-
-	awsRegion := aws.GetRandomStableRegion(t, nil, nil)
-	keyPair := ssh.GenerateRSAKeyPair(t, 2048)
-
-	terraformOptions := &terraform.Options{
-		TerraformDir: "../examples/polkashots",
-		EnvVars: map[string]string{
-			"AWS_DEFAULT_REGION": awsRegion,
-		},
-		Vars: map[string]interface{}{
-			"ssh_key":       keyPair.PublicKey,
-			"instance_name": instanceName,
-		},
-	}
-
-	defer terraform.Destroy(t, terraformOptions)
-	terraform.InitAndApply(t, terraformOptions)
-
-	publicInstanceIP := terraform.Output(t, terraformOptions, "public_ip")
-
-	publicHost := ssh.Host{
-		Hostname:    publicInstanceIP,
-		SshKeyPair:  keyPair,
-		SshUserName: "ubuntu",
-	}
-
-	maxRetries := 30
-	timeBetweenRetries := 60 * time.Second
-
-	description := fmt.Sprintf("SSHing to validator %s to check if docker & docker-compose are installed", publicInstanceIP)
-	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkBinaries(t, publicHost)
-	})
-
-	description = fmt.Sprintf("SSHing to validator (%s) to check if snapshot folder exist and >5GB", publicInstanceIP)
-	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkPolkadotSnapshot(t, publicHost)
-	})
-
-	description = fmt.Sprintf("SSHing to validator (%s) to check if application files exist", publicInstanceIP)
-	retry.DoWithRetry(t, description, maxRetries, timeBetweenRetries, func() (string, error) {
-		return checkAppFiles(t, publicHost)
+		return checkAppFiles(t, publicHost, "host")
 	})
 }

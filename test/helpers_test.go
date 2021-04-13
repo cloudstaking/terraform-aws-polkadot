@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -10,47 +12,101 @@ import (
 )
 
 // checkBinaries checks if docker & docker-compose binaries exist in the instance
-func checkBinaries(t *testing.T, h ssh.Host) (string, error) {
-	dockerExistCmd := fmt.Sprintf("command -v docker")
-	_, err := ssh.CheckSshCommandE(t, h, dockerExistCmd)
-
-	if err != nil {
-		return "", fmt.Errorf("It looks like docker is not installed '%w'", err)
+func checkBinaries(t *testing.T, h ssh.Host, appLayer string) (string, error) {
+	commandsDocker := []string{
+		"docker",
+		"docker-compose",
 	}
 
-	dockerComposeExistCmd := fmt.Sprintf("command -v docker-compose")
-	_, err = ssh.CheckSshCommandE(t, h, dockerComposeExistCmd)
-
-	if err != nil {
-		return "", fmt.Errorf("Docker is not yet installed '%w'", err)
+	commandsHost := []string{
+		"polkadot",
+		"caddy",
+		"nginx",
 	}
 
-	t.Log("Validator got docker & docker-compose installed")
+	switch appLayer {
+	case "host":
+		for _, cmd := range commandsHost {
+			_, err := ssh.CheckSshCommandE(t, h, fmt.Sprintf("command -v %s", cmd))
+
+			if err != nil {
+				return "", fmt.Errorf("It looks like %s is not installed '%w'", cmd, err)
+			}
+
+			t.Logf("Validator has %s installed", cmd)
+		}
+	case "docker":
+		for _, cmd := range commandsDocker {
+			_, err := ssh.CheckSshCommandE(t, h, fmt.Sprintf("command -v %s", cmd))
+
+			if err != nil {
+				return "", fmt.Errorf("It looks like %s is not installed '%w'", cmd, err)
+			}
+
+			t.Logf("Validator has %s installed", cmd)
+		}
+	}
+
+	return "", nil
+}
+
+// checkNodeExporter checks if node_exporter is working
+func checkNodeExporter(t *testing.T, h string, username string, password string) (string, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s:9100/metrics", h), nil)
+	if err != nil {
+		return "", fmt.Errorf("It looks node_exporter endpoint is not working '%w'", err)
+	}
+
+	req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("It looks	validator's node_exporter endpoint is not working (or not ready): '%w'", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("validator's node_exporter endpoint returned different than 200: %v", resp.StatusCode)
+	}
+
+	t.Log("Validator is serving node_exporter's metrics")
 
 	return "", nil
 }
 
 // checkAppFile ensures application layer files exists (docker-compose, nginx, etc)
-func checkAppFiles(t *testing.T, h ssh.Host) (string, error) {
-	appFilesExistCmd := fmt.Sprintf("ls /srv/docker-compose.yml /srv/nginx.conf")
-	_, err := ssh.CheckSshCommandE(t, h, appFilesExistCmd)
+func checkAppFiles(t *testing.T, h ssh.Host, appLayer string) (string, error) {
+	switch appLayer {
+	case "host":
+		polkadotCustomCliArgs := fmt.Sprintf("grep CLOUDSTAKING-TEST /etc/default/polkadot")
+		_, err := ssh.CheckSshCommandE(t, h, polkadotCustomCliArgs)
 
-	if err != nil {
-		return "", fmt.Errorf("Files /srv/docker-compose.yml and /srv/nginx.conf doesn't exist: '%w'", err)
+		if err != nil {
+			return "", fmt.Errorf("It looks like %s doesn't have doesn't have the right content '%w'", polkadotCustomCliArgs, err)
+		}
+
+		t.Logf("Validator has %s installed", polkadotCustomCliArgs)
+	case "docker":
+		appFilesExistCmd := fmt.Sprintf("ls /home/polkadot/docker-compose.yml /home/polkadot/nginx.conf")
+		_, err := ssh.CheckSshCommandE(t, h, appFilesExistCmd)
+
+		if err != nil {
+			return "", fmt.Errorf("Files /home/polkadot/docker-compose.yml and /home/polkadot/nginx.conf doesn't exist: '%w'", err)
+		}
+
+		t.Log("Validator has /home/polkadot/{docker-compose.yml,nginx.conf} files")
 	}
-
-	t.Log("Validator has /srv/{docker-compose.yml,nginx.conf} files")
 
 	return "", nil
 }
 
 // checkPolkadotSnapshot check snapshot size is "big enough"
 func checkPolkadotSnapshot(t *testing.T, h ssh.Host) (string, error) {
-	polkashotSizeCmd := fmt.Sprintf("sudo du /srv/kusama/ | tail -n1 | awk '{print $1}'")
+	polkashotSizeCmd := fmt.Sprintf("sudo du /home/polkadot/.local | tail -n1 | awk '{print $1}'")
 	polkashotFolderSize, err := ssh.CheckSshCommandE(t, h, polkashotSizeCmd)
 
 	if err != nil {
-		return "", fmt.Errorf("Error checking size of /srv/kusama/ directory: '%w'", err)
+		return "", fmt.Errorf("Error checking size of /home/polkadot/.local (polkashot snapshot): '%w'", err)
 	}
 
 	polkashotFolderSizeInt, err := strconv.Atoi(strings.TrimSuffix(polkashotFolderSize, "\n"))
@@ -60,10 +116,10 @@ func checkPolkadotSnapshot(t *testing.T, h ssh.Host) (string, error) {
 
 	// >5GB means snapshot is extracking good
 	if polkashotFolderSizeInt <= 5000000 {
-		return "", fmt.Errorf("Snapshot folder-size (/srv/kusama/) < 5GB. Problem downloading snapshot? Size: '%v'", polkashotFolderSizeInt)
+		return "", fmt.Errorf("Snapshot folder-size (/home/polkadot/.local) < 5GB. Problem downloading snapshot? Size: '%v'", polkashotFolderSizeInt)
 	}
 
-	t.Log("Snapshot folder (/srv/kusama) > 5GB. Snapshot downloaded")
+	t.Log("Snapshot folder (/home/polkadot/.local) > 5GB. Snapshot downloaded")
 
 	return "", nil
 }
