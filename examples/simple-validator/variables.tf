@@ -5,15 +5,3 @@ variable "instance_name" {
 variable "ssh_key" {
   description = "SSH Key to attach to the machine"
 }
-
-variable "tags" {
-  description = "A map of tags to add to all resources."
-  type        = map(string)
-  default     = {}
-}
-
-variable "enable_polkashots" {
-  description = "Pull latest Polkadot/Kusama (depending on chain variable) from polkashots.io"
-  type        = bool
-}
-

@@ -1,24 +1,5 @@
 locals {
-  chain = {
-    kusama   = { name = "kusama", short = "ksm" },
-    polkadot = { name = "polkadot", short = "dot" }
-    other    = { name = var.chain, short = var.chain }
-  }
-
   security_group_name = var.security_group_name != "" ? var.security_group_name : "${var.instance_name}-sg"
-
-  docker_compose = templatefile("${path.module}/templates/generate-docker-compose.sh.tpl", {
-    chain                   = var.chain
-    enable_polkashots       = var.enable_polkashots
-    latest_version          = data.github_release.polkadot.release_tag
-    additional_common_flags = var.polkadot_additional_common_flags
-  })
-
-  cloud_init = templatefile("${path.module}/templates/cloud-init.yaml.tpl", {
-    chain             = lookup(local.chain, var.chain, local.chain.other)
-    enable_polkashots = var.enable_polkashots
-    docker_compose    = base64encode(local.docker_compose)
-  })
 }
 
 data "aws_vpc" "selected" {
@@ -35,13 +16,21 @@ resource "aws_security_group" "validator" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.security_group_whitelisted_ssh_ip]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
     description = "nginx (reverse-proxy for p2p port)"
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "node_exporter"
+    from_port   = 9100
+    to_port     = 9100
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -83,7 +72,7 @@ resource "aws_instance" "validator" {
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.validator.id]
   key_name                    = aws_key_pair.validator.key_name
-  user_data                   = local.cloud_init
+  user_data                   = module.cloud_init.clout_init
 
   root_block_device {
     volume_size = var.disk_size
@@ -97,8 +86,18 @@ resource "aws_instance" "validator" {
   )
 }
 
-data "github_release" "polkadot" {
-  repository  = "polkadot"
-  owner       = "paritytech"
-  retrieve_by = "latest"
+module "cloud_init" {
+  source = "github.com/cloudstaking/terraform-cloudinit-polkadot?ref=main"
+
+  application_layer                = var.application_layer
+  additional_volume                = false
+  cloud_provider                   = "aws"
+  chain                            = var.chain
+  polkadot_additional_common_flags = var.polkadot_additional_common_flags
+  enable_polkashots                = var.enable_polkashots
+  p2p_port                         = var.p2p_port
+  proxy_port                       = var.proxy_port
+  public_fqdn                      = var.public_fqdn
+  http_username                    = var.http_username
+  http_password                    = var.http_password
 }
