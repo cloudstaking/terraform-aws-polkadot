@@ -16,7 +16,6 @@ module "kusama_validator" {
   source = "github.com/cloudstaking/terraform-aws-polkadot?ref=1.1.0"
 
   instance_name = "validator"
-  chain         = "kusama"
   ssh_key       = "ssh-rsa XXXXXXXXXXXXXX"
 }
 ```
