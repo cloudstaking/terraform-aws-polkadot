@@ -19,6 +19,19 @@ resource "aws_security_group" "validator" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # https for TLS-ALPN challange only when public_fqdn is given:
+  # https://caddyserver.com/docs/automatic-https#tls-alpn-challenge
+  dynamic "ingress" {
+    for_each = range(var.public_fqdn != "" ? 1 : 0)
+    content {
+      description = "https for TLS-ALPN challange when public_fqdn given"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
   ingress {
     description = "nginx (reverse-proxy for p2p port)"
     from_port   = 80
