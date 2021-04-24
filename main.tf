@@ -48,6 +48,14 @@ resource "aws_security_group" "validator" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "polkadot exporter"
+    from_port   = 9616
+    to_port     = 9616
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
